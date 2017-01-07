@@ -37,7 +37,7 @@ public class FileSearchEngine implements SearchEngine {
 	private Callback callback;
 	private String[] mustContainQueries;
 	private String[] ignoreQueries;
-	private File source;
+	private File[] sources;
 
 	int offset;
 	int startDateFormatLen;
@@ -140,7 +140,12 @@ public class FileSearchEngine implements SearchEngine {
 
 	@Override
 	public void setSource(String sourceLink) {
-		source = new File(sourceLink);
+		String files[] = sourceLink.split("\\$;\\$");
+		sources = new File[files.length];
+
+		for (int i = 0; i < files.length; i++) {
+			sources[i] = new File(files[i]);
+		}
 	}
 
 	@Override
@@ -164,24 +169,26 @@ public class FileSearchEngine implements SearchEngine {
 	public void search() {
 		new Thread() {
 			public void run() {
-				if (!source.exists()) {
-					return;
-				}
+				for (File source : sources) {
+					if (!source.exists()) {
+						return;
+					}
 
-				try {
-					if (source.isFile()) {
-						fileSearch(source);
-					} else {
-						for (File file : source.listFiles()) {
-							if (file.isFile()) {
-								fileSearch(file);
+					try {
+						if (source.isFile()) {
+							fileSearch(source);
+						} else {
+							for (File file : source.listFiles()) {
+								if (file.isFile()) {
+									fileSearch(file);
+								}
 							}
 						}
+					} catch (Exception e) {
+						e.printStackTrace();
+					} finally {
+						callback.searchIsFinish();
 					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				} finally {
-					callback.searchIsFinish();
 				}
 			}
 		}.start();

@@ -26,6 +26,7 @@ import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JTabbedPane;
+import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 
 import java.awt.BorderLayout;
@@ -35,10 +36,14 @@ import org.polly.log.viewer.engine.SearchEngine;
 import org.polly.log.viewer.engine.SearchEngine.Callback;
 import org.polly.widget.InfoConsole;
 import org.polly.widget.TextField;
+import org.polly.widget.TextFieldWithDescription;
 
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.io.File;
+import java.nio.file.spi.FileTypeDetector;
+import java.util.List;
 import java.awt.event.InputEvent;
 
 import javax.swing.JSeparator;
@@ -46,6 +51,14 @@ import javax.swing.JToolBar;
 import javax.swing.JLabel;
 
 import java.awt.Insets;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetDropEvent;
+import java.awt.dnd.DropTargetEvent;
+import java.awt.dnd.DropTargetListener;
 
 import javax.swing.JButton;
 
@@ -60,6 +73,87 @@ public class TabbedApplication {
 
 	private JMenuItem mntmScan = new JMenuItem("Scan");
 	private JButton button = new JButton("Scan");
+
+	/*
+	 * ! This class is used to manage the files drag and drops. When a file or a
+	 * folder is dragged into the main window it or they must be added as source
+	 * file in the folder text
+	 */
+	class FileDragDropListener implements DropTargetListener {
+		private JTextField textField = null;
+
+		public FileDragDropListener(JTextField textField) {
+			this.textField = textField;
+		}
+
+		@Override
+		public void dragEnter(DropTargetDragEvent dtde) {
+			// TODO Auto-generated method stub
+
+		}
+
+		@Override
+		public void dragExit(DropTargetEvent dte) {
+			// TODO Auto-generated method stub
+
+		}
+
+		@Override
+		public void dragOver(DropTargetDragEvent dtde) {
+			// TODO Auto-generated method stub
+
+		}
+
+		@Override
+		public void drop(DropTargetDropEvent event) {
+			// Accept copy drops
+			event.acceptDrop(DnDConstants.ACTION_COPY);
+
+			// Get the transfer which can provide the dropped item data
+			Transferable transferable = event.getTransferable();
+
+			// Get the data formats of the dropped item
+			DataFlavor[] flavors = transferable.getTransferDataFlavors();
+
+			// Loop through the flavors
+			if (textField != null)
+				textField.setText("");
+			for (DataFlavor flavor : flavors) {
+				try {
+					// If the drop items are files
+					if (flavor.isFlavorJavaFileListType()) {
+
+						// Get all of the dropped files
+						List<File> files = (List<File>) transferable.getTransferData(flavor);
+
+						// Loop them through
+						for (File file : files) {
+							// For linux systems remove the file:// 
+							String filePath = file.getPath();
+							filePath = filePath.replaceAll("file://", "");
+
+							if (textField != null)
+								if (textField.getText().trim().length() > 0)
+									textField.setText(file.getPath() + "$;$" + textField.getText());
+								else
+									textField.setText(file.getPath());
+						}
+					}
+				} catch (Exception e) {
+					// Print out the error stack
+					e.printStackTrace();
+				}
+			}
+
+			// Inform that the drop is complete
+			event.dropComplete(true);
+		}
+
+		@Override
+		public void dropActionChanged(DropTargetDragEvent event) {
+			// TODO Auto-generated method stub
+		}
+	}
 
 	/**
 	 * Launch the application.
@@ -144,6 +238,7 @@ public class TabbedApplication {
 	 */
 	private void initialize() {
 		frame = new JFrame();
+
 		frame.setTitle("LogViewer");
 		frame.setBounds(100, 100, 900, 650);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -158,10 +253,13 @@ public class TabbedApplication {
 		JLabel label = new JLabel("Log folder");
 		toolBar.add(label);
 
-		txtFolder = new TextField();
+		txtFolder = new TextFieldWithDescription("Write or drop here the log file/s or folder/s");
 		txtFolder.setMargin(new Insets(7, 7, 7, 7));
 		txtFolder.setColumns(10);
 		toolBar.add(txtFolder);
+
+		FileDragDropListener myDragDropListener = new FileDragDropListener(txtFolder);
+		new DropTarget(txtFolder, myDragDropListener);
 
 		button.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
@@ -193,8 +291,7 @@ public class TabbedApplication {
 				addPanel();
 			}
 		});
-		mntmAddPane.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N,
-				InputEvent.CTRL_MASK));
+		mntmAddPane.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_MASK));
 		mnFile.add(mntmAddPane);
 
 		JMenuItem mntmClosePane = new JMenuItem("Close pane");
@@ -203,20 +300,17 @@ public class TabbedApplication {
 				removePanel();
 			}
 		});
-		mntmClosePane.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_W,
-				InputEvent.CTRL_MASK));
+		mntmClosePane.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_W, InputEvent.CTRL_MASK));
 		mnFile.add(mntmClosePane);
 
-		JMenuItem mntmHighlightCurrentLine = new JMenuItem(
-				"Highlight current line");
+		JMenuItem mntmHighlightCurrentLine = new JMenuItem("Highlight current line");
 		mntmHighlightCurrentLine.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
 				if (tabbedPane.getSelectedIndex() == -1) {
 					return;
 				}
 
-				Component cmp = tabbedPane.getComponent(tabbedPane
-						.getSelectedIndex());
+				Component cmp = tabbedPane.getComponent(tabbedPane.getSelectedIndex());
 				if (!(cmp instanceof LogViewerPanel)) {
 					return;
 				}
@@ -225,10 +319,10 @@ public class TabbedApplication {
 				lvp.highlightCurrentLine(frame.getGraphics());
 			}
 		});
-		
+
 		JSeparator separator_1 = new JSeparator();
 		mnFile.add(separator_1);
-		
+
 		JMenuItem mntmSearchNextIn = new JMenuItem("Search next in log viewer");
 		mntmSearchNextIn.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
@@ -236,8 +330,7 @@ public class TabbedApplication {
 					return;
 				}
 
-				Component cmp = tabbedPane.getComponent(tabbedPane
-						.getSelectedIndex());
+				Component cmp = tabbedPane.getComponent(tabbedPane.getSelectedIndex());
 				if (!(cmp instanceof LogViewerPanel)) {
 					return;
 				}
@@ -248,22 +341,20 @@ public class TabbedApplication {
 		});
 		mntmSearchNextIn.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F3, 0));
 		mnFile.add(mntmSearchNextIn);
-		
+
 		JSeparator separator_2 = new JSeparator();
 		mnFile.add(separator_2);
 		mntmHighlightCurrentLine.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F2, InputEvent.CTRL_MASK));
 		mnFile.add(mntmHighlightCurrentLine);
 
-		JMenuItem mntmRemoveLineHighlights = new JMenuItem(
-				"Remove line highlights");
+		JMenuItem mntmRemoveLineHighlights = new JMenuItem("Remove line highlights");
 		mntmRemoveLineHighlights.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				if (tabbedPane.getSelectedIndex() == -1) {
 					return;
 				}
 
-				Component cmp = tabbedPane.getComponent(tabbedPane
-						.getSelectedIndex());
+				Component cmp = tabbedPane.getComponent(tabbedPane.getSelectedIndex());
 				if (!(cmp instanceof LogViewerPanel)) {
 					return;
 				}
@@ -272,13 +363,12 @@ public class TabbedApplication {
 				lvp.resetHighlightedLines();
 			}
 		});
-		mntmRemoveLineHighlights.setAccelerator(KeyStroke.getKeyStroke(
-				KeyEvent.VK_ESCAPE, 0));
+		mntmRemoveLineHighlights.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0));
 		mnFile.add(mntmRemoveLineHighlights);
-		
+
 		JSeparator separator_3 = new JSeparator();
 		mnFile.add(separator_3);
-		
+
 		JMenuItem mntmTaskManager = new JMenuItem("Task Manager");
 		mntmTaskManager.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
